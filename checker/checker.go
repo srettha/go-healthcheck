@@ -2,7 +2,6 @@ package checker
 
 import (
 	"challenge/go-healthcheck/client"
-	"sync"
 	"time"
 )
 
@@ -13,6 +12,10 @@ type Result struct {
 	TotalTime     int64 `json:"total_time"`
 }
 
+type PingUrlResult struct {
+	err error
+}
+
 // Ping url with http client
 func PingUrl(client client.HttpClient, url string) error {
 	resp, err := client.Get(url)
@@ -20,7 +23,7 @@ func PingUrl(client client.HttpClient, url string) error {
 		return err
 	}
 
-	defer resp.Body.Close()
+	resp.Body.Close()
 
 	return nil
 }
@@ -39,29 +42,37 @@ func FormatPingResult(totalWebsites int, success int, failure int, elapse time.D
 
 // Ping urls
 func Ping(client client.HttpClient, urls []string) Result {
+	totalWebsites := len(urls)
 	start := time.Now()
 
 	var success, failure int
-	var wg sync.WaitGroup
+	resultsChan := make(chan *PingUrlResult)
 
-	for _, u := range urls {
-		wg.Add(1)
+	defer close(resultsChan)
 
+	for _, url := range urls {
 		go func(url string) {
-			defer wg.Done()
-
 			err := PingUrl(client, url)
-			if err == nil {
-				success += 1
-			} else {
-				failure += 1
-			}
-		}(u)
+			result := &PingUrlResult{err}
+			resultsChan <- result
+		}(url)
 	}
 
-	wg.Wait()
+	var results []PingUrlResult
+	for result := range resultsChan {
+		results = append(results, *result)
+		if result.err == nil {
+			success += 1
+		} else {
+			failure += 1
+		}
+
+		if len(results) == totalWebsites {
+			break
+		}
+	}
 
 	elapse := time.Since(start)
 
-	return FormatPingResult(len(urls), success, failure, elapse)
+	return FormatPingResult(totalWebsites, success, failure, elapse)
 }
