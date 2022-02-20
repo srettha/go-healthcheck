@@ -33,11 +33,7 @@ func main() {
 		log.Fatal("Unable to read input file")
 	}
 
-	log.Println("Perform website checking...")
-
 	httpClient := client.GetHttpClient()
-	pingResult := checker.Ping(httpClient, urls)
-
 	socialClient := client.GetSocialClient(channelID, channelSecret)
 	if err != nil {
 		log.Fatal("Social SDK:", socialClient, " err:", err)
@@ -48,6 +44,10 @@ func main() {
 	}
 
 	accessToken := oauth.AuthorizeUser(socialClient, baseRedirectURL)
+
+	log.Println("Perform website checking...")
+
+	pingResult := checker.Ping(httpClient, urls)
 
 	if err := reporter.Report(httpClient, accessToken, pingResult); err != nil {
 		log.Println("Failed to send report to Healcheck Report system")
